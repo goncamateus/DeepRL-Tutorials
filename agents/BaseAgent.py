@@ -27,13 +27,25 @@ class BaseAgent(object):
     def MSE(self, x):
         return 0.5 * x.pow(2)
 
-    def save_w(self):
-        torch.save(self.model.state_dict(), './saved_agents/model.dump')
-        torch.save(self.optimizer.state_dict(), './saved_agents/optim.dump')
+    def save_w(self, path_model=None, path_optim=None):
+        if path_model is None:
+            torch.save(self.model.state_dict(), './saved_agents/model.dump')
+        else:
+            torch.save(self.model.state_dict(), path_model)
+        if path_optim is None:
+            torch.save(self.optimizer.state_dict(), './saved_agents/optim.dump')
+        else:
+            torch.save(self.optimizer.state_dict(), path_optim)
     
-    def load_w(self):
-        fname_model = "./saved_agents/model.dump"
-        fname_optim = "./saved_agents/optim.dump"
+    def load_w(self, model_path=None, optim_path=None):
+        if model_path is None:
+            fname_model = "./saved_agents/model.dump"
+        else:
+            fname_model = model_path
+        if optim_path is None:
+            fname_optim = "./saved_agents/optim.dump"
+        else:
+            fname_optim = optim_path
 
         if os.path.isfile(fname_model):
             self.model.load_state_dict(torch.load(fname_model))
@@ -42,13 +54,12 @@ class BaseAgent(object):
         if os.path.isfile(fname_optim):
             self.optimizer.load_state_dict(torch.load(fname_optim))
 
-    def save_replay(self):
-        pickle.dump(self.memory, open('./saved_agents/exp_replay_agent.dump', 'wb'))
+    def save_replay(self, mem_path='./saved_agents/exp_replay_agent.dump'):
+        pickle.dump(self.memory, open(mem_path, 'wb'))
 
-    def load_replay(self):
-        fname = './saved_agents/exp_replay_agent.dump'
-        if os.path.isfile(fname):
-            self.memory = pickle.load(open(fname, 'rb'))
+    def load_replay(self, mem_path='./saved_agents/exp_replay_agent.dump'):
+        if os.path.isfile(fnamem_pathme):
+            self.memory = pickle.load(open(mem_path, 'rb'))
 
     def save_sigma_param_magnitudes(self, tstep):
         with torch.no_grad():
