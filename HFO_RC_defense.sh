@@ -3,7 +3,7 @@
 ~/robocin/HFO/bin/HFO --headless --defense-agents=3 --offense-npcs=3 --defense-npcs=1 --offense-team=helios --trials $1 &
 sleep 10
 # Sleep is needed to make sure doesn't get connected too soon, as unum 1 (goalie)
-python torch_test_DDDQN.py &> agent1.txt &
+python torch_test_DDDQN.py &
 sleep 5
 python torch_test_DDDQN.py &> agent2.txt &
 sleep 5

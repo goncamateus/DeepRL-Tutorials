@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from scipy.spatial import distance
 
 from agents.DQN import Model as DQN_Agent
-from hfo_utils import remake_state, strict_state
+from hfo_env import HFOEnv
 from utils.hyperparameters import Config
 from utils.plot import plot_reward
 from utils.ReplayMemory import ExperienceReplayMemory
@@ -107,37 +107,11 @@ class Model(DQN_Agent):
         self.target_model = DuelingDQN(
             self.env.observation_space.shape, self.env.action_space.n)
         
-    
-
-def get_ball_dist(state):
-    agent = (state[0], state[1])
-    ball = (state[3], state[4])
-    return distance.euclidean(agent, ball)
-
-
-class HFOEnv():
-    def __init__(self, shape, actions):
-        class ObservationSpace():
-            def __init__(self, shape):
-                self.shape = shape
-
-        class ActionSpace():
-            def __init__(self, n):
-                self.n = n
-        self.observation_space = ObservationSpace(shape)
-        self.action_space = ActionSpace(actions)
-
-
-hfo_env = hfo.HFOEnvironment()
-hfo_env.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET, './formations-dt',
-                        6000, 'localhost', 'base_right', play_goalie=False)
-num_teammates = hfo_env.getNumTeammates()
-num_opponents = hfo_env.getNumOpponents()
 actions = [hfo.MOVE, hfo.GO_TO_BALL]
 rewards = [700, 1000]
+hfo_env = HFOEnv(actions, rewards)
 
 start = timer()
-
 log_dir = "/tmp/gym/"
 try:
     os.makedirs(log_dir)
@@ -146,14 +120,20 @@ except OSError:
     for f in files:
         os.remove(f)
 
-model = Model(env=HFOEnv((10 + 6*num_teammates + 3 *
-                          num_opponents + 2, ), 2), config=config)
+model = Model(env=hfo_env, config=config)
 
-path_model = './saved_agents/model_{}.dump'.format(hfo_env.getUnum())
-path_optim = './saved_agents/optim_{}.dump'.format(hfo_env.getUnum())
-if os.path.isfile(path_model) and os.path.isfile(path_optim):
+model_path = './saved_agents/model_{}.dump'.format(hfo_env.getUnum())
+optim_path = './saved_agents/optim_{}.dump'.format(hfo_env.getUnum())
+mem_path = './saved_agents/exp_replay_agent_{}.dump'.format(hfo_env.getUnum())
+
+if os.path.isfile(model_path) and os.path.isfile(optim_path):
+    model.load_w(model_path=model_path, optim_path=optim_path)
     print("Model Loaded")
-    model.load_w(model_path=path_model, optim_path=path_optim)
+
+if os.path.isfile(mem_path):
+    model.load_replay(mem_path=mem_path)
+    config.LEARN_START = 0
+    print("Memory Loaded")
 
 max_reached = False
 frame_idx = 1
@@ -164,53 +144,14 @@ for episode in itertools.count():
     if max_reached:
         break
     while status == hfo.IN_GAME and not max_reached:
-        state = hfo_env.getState()
-        state = remake_state(
-            state, num_teammates, num_opponents, is_offensive=False)
-
+        state = hfo_env.get_state()
         epsilon = config.epsilon_by_frame(frame_idx)
         action = model.get_action(state, epsilon)
+        if hfo_env.get_ball_dist(state) > 20:
+           action = 0
 
-        if get_ball_dist(state) < 20:
-            hfo_env.act(actions[action])
-
-            act = action
-        else:
-            act = 0
-            action = 0
-            hfo_env.act(actions[0])
-        # ------------------------------
-        status = hfo_env.step()
-        if status != hfo.IN_GAME:
-            done = 1
-        else:
-            done = 0
-        next_state = hfo_env.getState()
-        next_state = remake_state(
-            next_state, num_teammates, num_opponents, is_offensive=False)
-        # -----------------------------
-        reward = 0
-        if status == hfo.GOAL:
-            reward = -20000
-        elif not '-{}'.format(hfo_env.getUnum()) in hfo_env.statusToString(status):
-            reward = 0
-        elif 'OUT' in hfo_env.statusToString(status):
-            nmr_out += 1
-            reward = rewards[act]/2
-            if nmr_out % 20 and nmr_out > 1:
-                reward = reward*10
-        else:
-            if done:
-                reward = rewards[act]
-                if '-{}'.format(hfo_env.getUnum()) in hfo_env.statusToString(status):
-                    taken += 1
-                    reward = rewards[act]*2
-                    if taken % 5 and taken > 1:
-                        reward = reward*20
-            else:
-                reward = rewards[act] - next_state[3]*3
+        next_state, reward, done, status = hfo_env.step(action)
         episode_rewards.append(reward)
-        # -----------------------------------
         model.update(state, action, reward, next_state, frame_idx)
 
         if done:
@@ -232,9 +173,11 @@ for episode in itertools.count():
             print("Model Saved")
 #------------------------------ DOWN
 # Quit if the server goes down
-if status == hfo.SERVER_DOWN or max_reached:
-    model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
-                path_optim='./saved_agents/optim_{}.dump'.format(hfo_env.getUnum()))
-    print("Model Saved")
-    hfo_env.act(hfo.QUIT)
-    exit()
+    if status == hfo.SERVER_DOWN or max_reached:
+        model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
+                    path_optim='./saved_agents/optim_{}.dump'.format(hfo_env.getUnum()))
+        print("Model Saved")
+        model.save_replay(mem_path=mem_path)
+        print("Memory Saved")
+        hfo_env.act(hfo.QUIT)
+        exit()
