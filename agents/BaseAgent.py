@@ -58,7 +58,7 @@ class BaseAgent(object):
         pickle.dump(self.memory, open(mem_path, 'wb'))
 
     def load_replay(self, mem_path='./saved_agents/exp_replay_agent.dump'):
-        if os.path.isfile(fnamem_pathme):
+        if os.path.isfile(mem_path):
             self.memory = pickle.load(open(mem_path, 'rb'))
 
     def save_sigma_param_magnitudes(self, tstep):
