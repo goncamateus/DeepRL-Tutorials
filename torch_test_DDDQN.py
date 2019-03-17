@@ -132,7 +132,7 @@ if os.path.isfile(model_path) and os.path.isfile(optim_path):
 
 if os.path.isfile(mem_path):
     model.load_replay(mem_path=mem_path)
-    config.LEARN_START = 0
+    config.LEARN_START = 1000
     print("Memory Loaded")
 
 max_reached = False
